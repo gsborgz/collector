@@ -43,7 +43,16 @@ function PokemonCard({ pokemon, highlighted, cardRef }: PokemonCardProps) {
         highlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background'
       )}
     >
-      <Card className='w-full max-w-sm md:w-58'>
+      <Card
+        className={concatClassNames(
+          'w-full max-w-sm md:w-58',
+          entry.fullArt
+            ? '!border-amber-400 !bg-gradient-to-br !from-amber-50 !via-amber-100 !to-yellow-100 dark:!border-amber-500/60 dark:!from-amber-950 dark:!via-amber-900/60 dark:!to-yellow-950'
+            : entry.owned
+              ? '!border-emerald-400 !bg-gradient-to-br !from-emerald-50 !via-emerald-100 !to-teal-100 dark:!border-emerald-500/60 dark:!from-emerald-950 dark:!via-emerald-900/60 dark:!to-teal-950'
+              : undefined
+        )}
+      >
         <div className='w-full flex justify-end'><Badge className='bg-slate-200/60 text-slate-600 dark:bg-slate-600/60 dark:text-slate-200'>#{pokemonId.toString().padStart(3, '0')}</Badge></div>
 
         <Image
