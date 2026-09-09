@@ -15,6 +15,7 @@ import Badge from '@components/ui/Badge';
 import { Select } from '@components/ui/Select';
 import Separator from '@components/ui/Separator';
 import Checkbox from '@components/ui/Checkbox';
+import QuantityStepper from '@components/ui/QuantityStepper';
 import { useCollection } from '@providers/CollectionProvider';
 import InfiniteScroll from '@components/InifiniteScroll';
 import Modal from '@components/ui/Modal';
@@ -343,8 +344,10 @@ function ErrorDetails({ message }: { message: string }) {
 
 function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: PokemonSpecies | null }) {
   const { t, i18n } = useTranslation();
-  const { getEntry, toggleOwned, toggleFullArt } = useCollection();
-  const entry = getEntry(pokemon.id);
+  const { getTarget, getOwnedQuantity, getFullArtQuantity, setOwnedQuantity, setFullArtQuantity } = useCollection();
+  const pokemonTarget = getTarget(pokemon.id);
+  const ownedQuantity = getOwnedQuantity(pokemon.id);
+  const fullArtQuantity = getFullArtQuantity(pokemon.id);
   const availableVersions = getAvailableVersions(species);
   const initialDescription = getDescription(availableVersions[0].value, species, i18n.language) || t('noDescription');
   const cry = pokemon.cries.latest;
@@ -414,8 +417,19 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
           </div>
 
           <div className='flex gap-4 mt-2'>
-            <Checkbox checked={entry.owned} onChange={() => toggleOwned(pokemon.id)} label={t('collection.owned')} />
-            <Checkbox checked={entry.fullArt} onChange={() => toggleFullArt(pokemon.id)} label={t('collection.fullArt')} />
+            <QuantityStepper
+              label={t('collection.owned')}
+              value={ownedQuantity}
+              target={pokemonTarget.normal}
+              onChange={(next) => setOwnedQuantity(pokemon.id, next)}
+            />
+
+            <QuantityStepper
+              label={t('collection.fullArt')}
+              value={fullArtQuantity}
+              target={pokemonTarget.fullArt}
+              onChange={(next) => setFullArtQuantity(pokemon.id, next)}
+            />
           </div>
         </div>
 

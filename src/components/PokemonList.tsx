@@ -1,5 +1,5 @@
 import InfiniteScroll from '@components/InifiniteScroll';
-import { MAX_POKEMON_ID, getPokemonIdFromUrl, usePokemonList } from '@hooks/useApi';
+import { getPokemonIdFromUrl, usePokemonList } from '@hooks/useApi';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PokemonListItem } from '@models/pokemon';
 import { useTranslation } from 'react-i18next';
@@ -7,13 +7,28 @@ import { useDebouncedSearchTerm } from '@providers/SearchProvider';
 import { useCollection } from '@providers/CollectionProvider';
 import { useCollectionFilters } from '@providers/FilterProvider';
 import PokemonCard from './PokemonCard';
+import PokemonPicker, { PokemonPickerResult } from './PokemonPicker';
+import { Button } from '@components/ui/Button';
 
 const MIN_SEARCH_LENGTH = 2;
 const SEARCH_TRAILING_BUFFER = 12;
 
 export default function PokemonList() {
   const { t } = useTranslation();
-  const { ownedCount, fullArtCount, getEntry } = useCollection();
+  const {
+    ownedCount,
+    fullArtCount,
+    totalCount,
+    collectionType,
+    pokemonIds,
+    defaultTarget,
+    targetOverrides,
+    updateCustomList,
+    updateTargets,
+    getTarget,
+    getOwnedQuantity,
+    getFullArtQuantity,
+  } = useCollection();
   const { filters } = useCollectionFilters();
   const debouncedSearchTerm = useDebouncedSearchTerm();
   const [data, setData] = useState<PokemonListItem[]>([]);
@@ -22,24 +37,36 @@ export default function PokemonList() {
   const [baseCount, setBaseCount] = useState(24);
   const [searchExpansion, setSearchExpansion] = useState(0);
   const [highlightedName, setHighlightedName] = useState<string | null>(null);
+  const [editingList, setEditingList] = useState(false);
+  const [savingList, setSavingList] = useState(false);
   const itemsPerPage = 12;
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const cardRefCallbacks = useRef<Map<string, (el: HTMLDivElement | null) => void>>(new Map());
   const hadSearchExpansion = useRef(false);
   const searchExpansionRef = useRef(0);
-  const filteredData = useMemo(() => {
-    if (filters.size === 0) return data;
+  const scopedData = useMemo(() => {
+    if (collectionType !== 'custom' || !pokemonIds) return data;
 
-    return data.filter((pokemon) => {
-      const entry = getEntry(getPokemonIdFromUrl(pokemon.url));
+    const idSet = new Set(pokemonIds);
+
+    return data.filter((pokemon) => idSet.has(getPokemonIdFromUrl(pokemon.url)));
+  }, [data, collectionType, pokemonIds]);
+  const filteredData = useMemo(() => {
+    if (filters.size === 0) return scopedData;
+
+    return scopedData.filter((pokemon) => {
+      const id = getPokemonIdFromUrl(pokemon.url);
+      const target = getTarget(id);
+      const isOwned = target.normal > 0 && getOwnedQuantity(id) >= target.normal;
+      const isFullArt = target.fullArt > 0 && getFullArtQuantity(id) >= target.fullArt;
 
       return (
-        (filters.has('owned') && entry.owned) ||
-        (filters.has('notOwned') && !entry.owned) ||
-        (filters.has('fullArt') && entry.fullArt)
+        (filters.has('owned') && isOwned) ||
+        (filters.has('notOwned') && !isOwned) ||
+        (filters.has('fullArt') && isFullArt)
       );
     });
-  }, [data, filters, getEntry]);
+  }, [scopedData, filters, getTarget, getOwnedQuantity, getFullArtQuantity]);
   const displayedCount = Math.max(baseCount, searchExpansion);
   const visiblePokemon = filteredData.slice(0, displayedCount);
   const hasNextPage = displayedCount < filteredData.length;
@@ -134,11 +161,55 @@ export default function PokemonList() {
     }
   }, [searchExpansion]);
 
+  if (editingList) {
+    const isCustom = collectionType === 'custom';
+
+    const handleConfirmEdit = async (result: PokemonPickerResult) => {
+      setSavingList(true);
+
+      try {
+        if (isCustom) {
+          await updateCustomList(result.pokemonIds ?? [], result.defaultTarget, result.targetOverrides);
+        } else {
+          await updateTargets(result.defaultTarget, result.targetOverrides);
+        }
+
+        setEditingList(false);
+      } finally {
+        setSavingList(false);
+      }
+    };
+
+    return (
+      <div className='flex flex-col gap-4'>
+        <h2 className='text-center text-xl font-semibold text-primary'>
+          {isCustom ? t('setup.editListTitle') : t('setup.editTargetsTitle')}
+        </h2>
+
+        <PokemonPicker
+          mode={isCustom ? 'membership' : 'targets'}
+          initialSelectedIds={pokemonIds ?? []}
+          initialDefaultTarget={defaultTarget}
+          initialTargetOverrides={targetOverrides}
+          confirmLabel={isCustom ? t('setup.editListConfirm') : t('setup.editTargetsConfirm')}
+          savingLabel={t('setup.saving')}
+          saving={savingList}
+          onConfirm={handleConfirmEdit}
+          onCancel={() => setEditingList(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className='flex flex-col gap-6'>
-      <div className='flex flex-wrap justify-center gap-x-6 gap-y-1 text-center text-sm text-slate-500'>
-        <p>{t('collection.progress', { owned: ownedCount, total: MAX_POKEMON_ID })}</p>
-        <p>{t('collection.fullArtProgress', { owned: fullArtCount, total: MAX_POKEMON_ID })}</p>
+      <div className='flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center text-sm text-slate-500'>
+        <p>{t('collection.progress', { owned: ownedCount, total: totalCount })}</p>
+        <p>{t('collection.fullArtProgress', { owned: fullArtCount, total: totalCount })}</p>
+
+        <Button variant='ghost' size='default' onClick={() => setEditingList(true)}>
+          {collectionType === 'custom' ? t('setup.editList') : t('setup.editTargets')}
+        </Button>
       </div>
 
       <InfiniteScroll

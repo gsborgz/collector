@@ -5,7 +5,7 @@ import { LanguageToggle } from '@components/LanguageToggle';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
-import { BookAlert, Copy, CopyCheck, ClipboardPaste, ListFilter, Search } from 'lucide-react';
+import { BookAlert, Copy, CopyCheck, ClipboardPaste, ListFilter, LogOut, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useCollection } from '@providers/CollectionProvider';
@@ -22,16 +22,16 @@ export default function Header() {
   const { t } = useTranslation();
   const router = useRouter();
   const currentRoute = usePathname();
-  const isPokedex = currentRoute === '/';
-  const { getExportCode, importFromCode } = useCollection();
+  const { status, collectionId, loadCollection, switchCollection } = useCollection();
+  const isPokedex = currentRoute === '/' && status === 'ready';
   const { searchTerm, setSearchTerm } = useSearch();
   const [copied, setCopied] = useState(false);
 
   const handleCopyCode = async () => {
-    try {
-      const code = await getExportCode();
+    if (!collectionId) return;
 
-      await navigator.clipboard.writeText(code);
+    try {
+      await navigator.clipboard.writeText(collectionId);
 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -46,11 +46,16 @@ export default function Header() {
     if (!code) return;
 
     try {
-      await importFromCode(code.trim());
-      alert(t('collection.importSuccess'));
+      await loadCollection(code.trim());
     } catch {
       alert(t('collection.invalidCode'));
     }
+  };
+
+  const handleSwitchCollection = () => {
+    if (!window.confirm(t('setup.switchConfirm'))) return;
+
+    switchCollection();
   };
 
   return (
@@ -82,13 +87,21 @@ export default function Header() {
         </div>
 
         <div className='flex items-center justify-end gap-2'>
-          <Button variant='ghost' size='icon' onClick={handleCopyCode} title={t('collection.copyCode')}>
-            {copied ? <CopyCheck className='w-5 h-5' /> : <Copy className='w-5 h-5' />}
-          </Button>
+          {status === 'ready' && (
+            <>
+              <Button variant='ghost' size='icon' onClick={handleCopyCode} title={t('collection.copyCode')}>
+                {copied ? <CopyCheck className='w-5 h-5' /> : <Copy className='w-5 h-5' />}
+              </Button>
 
-          <Button variant='ghost' size='icon' onClick={handleImportCode} title={t('collection.pasteCode')}>
-            <ClipboardPaste className='w-5 h-5' />
-          </Button>
+              <Button variant='ghost' size='icon' onClick={handleImportCode} title={t('collection.pasteCode')}>
+                <ClipboardPaste className='w-5 h-5' />
+              </Button>
+
+              <Button variant='ghost' size='icon' onClick={handleSwitchCollection} title={t('setup.switchCollection')}>
+                <LogOut className='w-5 h-5' />
+              </Button>
+            </>
+          )}
 
           <LanguageToggle />
           <ThemeToggle />

@@ -4,7 +4,7 @@ import Card from '@components/ui/Card';
 import { getPokemonIdFromUrl } from '@hooks/useApi';
 import { PokemonListItem } from '@models/pokemon';
 import Badge from '@components/ui/Badge';
-import Checkbox from '@components/ui/Checkbox';
+import QuantityStepper from '@components/ui/QuantityStepper';
 import Image from 'next/image';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,10 +22,14 @@ function PokemonCard({ pokemon, highlighted, cardRef }: PokemonCardProps) {
   if (!pokemon) return null;
 
   const { t } = useTranslation();
-  const { getEntry, toggleOwned, toggleFullArt } = useCollection();
+  const { getTarget, getOwnedQuantity, getFullArtQuantity, setOwnedQuantity, setFullArtQuantity } = useCollection();
   const pokemonId = getPokemonIdFromUrl(pokemon.url);
   const router = useRouter();
-  const entry = getEntry(pokemonId);
+  const pokemonTarget = getTarget(pokemonId);
+  const ownedQuantity = getOwnedQuantity(pokemonId);
+  const fullArtQuantity = getFullArtQuantity(pokemonId);
+  const isOwned = pokemonTarget.normal > 0 && ownedQuantity >= pokemonTarget.normal;
+  const isFullArt = pokemonTarget.fullArt > 0 && fullArtQuantity >= pokemonTarget.fullArt;
   const onCardClick = () => {
     router.push(`/pokemon/${pokemonId}`);
   };
@@ -46,9 +50,9 @@ function PokemonCard({ pokemon, highlighted, cardRef }: PokemonCardProps) {
       <Card
         className={concatClassNames(
           'w-full max-w-sm md:w-58',
-          entry.fullArt
-            ? '!border-amber-400 !bg-gradient-to-br !from-amber-50 !via-amber-100 !to-yellow-100 dark:!border-amber-500/60 dark:!from-amber-950 dark:!via-amber-900/60 dark:!to-yellow-950'
-            : entry.owned
+          isFullArt
+            ? '!border-purple-400 !bg-gradient-to-br !from-purple-50 !via-purple-100 !to-violet-100 dark:!border-purple-500/60 dark:!from-purple-950 dark:!via-purple-900/60 dark:!to-violet-950'
+            : isOwned
               ? '!border-emerald-400 !bg-gradient-to-br !from-emerald-50 !via-emerald-100 !to-teal-100 dark:!border-emerald-500/60 dark:!from-emerald-950 dark:!via-emerald-900/60 dark:!to-teal-950'
               : undefined
         )}
@@ -68,9 +72,20 @@ function PokemonCard({ pokemon, highlighted, cardRef }: PokemonCardProps) {
 
         <h3 className='text-center text-xl md:text-lg font-semibold capitalize text-primary'>{pokemon.name}</h3>
 
-        <div onClick={(e) => e.stopPropagation()} className='flex justify-center gap-4 mt-4'>
-          <Checkbox checked={entry.owned} onChange={() => toggleOwned(pokemonId)} label={t('collection.owned')} />
-          <Checkbox checked={entry.fullArt} onChange={() => toggleFullArt(pokemonId)} label={t('collection.fullArt')} />
+        <div className='flex flex-col items-center gap-1.5 mt-4'>
+          <QuantityStepper
+            label={t('collection.owned')}
+            value={ownedQuantity}
+            target={pokemonTarget.normal}
+            onChange={(next) => setOwnedQuantity(pokemonId, next)}
+          />
+
+          <QuantityStepper
+            label={t('collection.fullArt')}
+            value={fullArtQuantity}
+            target={pokemonTarget.fullArt}
+            onChange={(next) => setFullArtQuantity(pokemonId, next)}
+          />
         </div>
       </Card>
     </div>
