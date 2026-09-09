@@ -33,6 +33,7 @@ interface CollectionContextValue {
   ownedCount: number;
   fullArtCount: number;
   totalCount: number;
+  totalFullArtCount: number;
   createCollection: (type: CollectionType, pokemonIds?: number[]) => Promise<string>;
   loadCollection: (id: string) => Promise<void>;
   updateCustomList: (pokemonIds: number[], defaultTarget?: PokemonTarget, targetOverrides?: Record<string, PokemonTarget>) => Promise<void>;
@@ -148,17 +149,18 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
     ? pokemonIds
     : Array.from({ length: MAX_POKEMON_ID - MIN_POKEMON_ID + 1 }, (_, i) => i + MIN_POKEMON_ID);
 
-  const ownedCount = scopedPokemonIds.filter((id) => {
+  const ownedCount = scopedPokemonIds.reduce((sum, id) => {
     const target = getTarget(id);
-    return target.normal > 0 && getOwnedQuantity(id) >= target.normal;
-  }).length;
+    return sum + Math.min(getOwnedQuantity(id), target.normal);
+  }, 0);
 
-  const fullArtCount = scopedPokemonIds.filter((id) => {
+  const fullArtCount = scopedPokemonIds.reduce((sum, id) => {
     const target = getTarget(id);
-    return target.fullArt > 0 && getFullArtQuantity(id) >= target.fullArt;
-  }).length;
+    return sum + Math.min(getFullArtQuantity(id), target.fullArt);
+  }, 0);
 
-  const totalCount = scopedPokemonIds.length;
+  const totalCount = scopedPokemonIds.reduce((sum, id) => sum + getTarget(id).normal, 0);
+  const totalFullArtCount = scopedPokemonIds.reduce((sum, id) => sum + getTarget(id).fullArt, 0);
 
   const createCollection = async (type: CollectionType, ids?: number[]): Promise<string> => {
     const response = await fetch('/api/collections', {
@@ -267,6 +269,7 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
         ownedCount,
         fullArtCount,
         totalCount,
+        totalFullArtCount,
         createCollection,
         loadCollection,
         updateCustomList,
