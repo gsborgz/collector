@@ -51,6 +51,16 @@ interface PokemonPickerProps {
 const GRID_COLUMNS_CLASSNAME = 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
 const ROW_HEIGHT_ESTIMATE = 116;
 
+function groupIntoRows<T>(items: T[], columns: number): T[][] {
+  const grouped: T[][] = [];
+
+  for (let i = 0; i < items.length; i += columns) {
+    grouped.push(items.slice(i, i + columns));
+  }
+
+  return grouped;
+}
+
 function useMeasuredColumns(gridClassName: string) {
   const probeRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(3);
@@ -144,38 +154,30 @@ export default function PokemonPicker({
     return data.filter((pokemon) => pokemon.name.toLowerCase().includes(term));
   }, [data, search]);
 
-  // Selected Pokémon are always pulled to the front, in the user's custom
-  // order, so they stay visible and reorderable without having to scroll
-  // through the whole dex to find them again.
-  const orderedData = useMemo(() => {
-    if (mode !== 'membership') return filteredData;
+  // Selected Pokémon are pinned to the front and always fully rendered —
+  // never virtualized away and never hidden by the search filter — so every
+  // one of them stays directly draggable and the SortableContext's ids
+  // always match a mounted element 1:1, regardless of scroll position or
+  // an active search term. Only the (potentially much larger) unselected
+  // pool is virtualized.
+  const pinnedItems = useMemo(() => {
+    if (mode !== 'membership') return [];
 
-    const filteredIds = new Set(filteredData.map((pokemon) => getPokemonIdFromUrl(pokemon.url)));
-    const selectedItems = selectedOrder
-      .filter((id) => filteredIds.has(id))
+    return selectedOrder
       .map((id) => dataById.get(id))
       .filter((pokemon): pokemon is PokemonListItem => Boolean(pokemon));
-    const unselectedItems = filteredData.filter((pokemon) => !selectedIdsSet.has(getPokemonIdFromUrl(pokemon.url)));
+  }, [mode, selectedOrder, dataById]);
 
-    return [...selectedItems, ...unselectedItems];
-  }, [filteredData, selectedOrder, selectedIdsSet, dataById, mode]);
+  const virtualizedItems = useMemo(() => {
+    if (mode !== 'membership') return filteredData;
 
-  // The full dex (up to ~1025 entries) is already loaded in memory, so instead
-  // of incrementally rendering more items as the user scrolls, we virtualize
-  // rows of the grid: only the rows actually in (or near) the viewport are
-  // mounted, regardless of how many Pokémon are selected or how large the list is.
-  const rows = useMemo(() => {
-    const grouped: PokemonListItem[][] = [];
+    return filteredData.filter((pokemon) => !selectedIdsSet.has(getPokemonIdFromUrl(pokemon.url)));
+  }, [mode, filteredData, selectedIdsSet]);
 
-    for (let i = 0; i < orderedData.length; i += columns) {
-      grouped.push(orderedData.slice(i, i + columns));
-    }
-
-    return grouped;
-  }, [orderedData, columns]);
+  const virtualizedRows = useMemo(() => groupIntoRows(virtualizedItems, columns), [virtualizedItems, columns]);
 
   const rowVirtualizer = useWindowVirtualizer({
-    count: rows.length,
+    count: virtualizedRows.length,
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
     overscan: 4,
     scrollMargin,
@@ -266,18 +268,35 @@ export default function PokemonPicker({
         </div>
       )}
 
-      {!loading && rows.length === 0 && (
+      {!loading && pinnedItems.length === 0 && virtualizedItems.length === 0 && (
         <div className='text-center py-4'>
           <p className='text-sm text-slate-500'>{t('noResults')}</p>
         </div>
       )}
 
-      {!loading && rows.length > 0 && (
+      {!loading && (pinnedItems.length > 0 || virtualizedItems.length > 0) && (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={selectedOrder} strategy={rectSortingStrategy}>
+            {pinnedItems.length > 0 && (
+              <div className={concatClassNames('grid', GRID_COLUMNS_CLASSNAME, 'gap-3 pb-3')}>
+                {pinnedItems.map((pokemon) => {
+                  const id = getPokemonIdFromUrl(pokemon.url);
+
+                  return (
+                    <SortablePickerCard
+                      key={id}
+                      id={id}
+                      pokemon={pokemon}
+                      onToggle={() => toggleSelected(id)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
             <div ref={gridContainerRef} className='relative mb-8' style={{ height: rowVirtualizer.getTotalSize() }}>
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const rowItems = rows[virtualRow.index];
+                const rowItems = virtualizedRows[virtualRow.index];
 
                 return (
                   <div
@@ -295,18 +314,7 @@ export default function PokemonPicker({
                   >
                     {rowItems.map((pokemon) => {
                       const id = getPokemonIdFromUrl(pokemon.url);
-                      const selected = mode === 'targets' || selectedIdsSet.has(id);
-
-                      if (mode === 'membership' && selected) {
-                        return (
-                          <SortablePickerCard
-                            key={id}
-                            id={id}
-                            pokemon={pokemon}
-                            onToggle={() => toggleSelected(id)}
-                          />
-                        );
-                      }
+                      const selected = mode === 'targets';
 
                       return (
                         <PickerCard
