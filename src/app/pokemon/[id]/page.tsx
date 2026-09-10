@@ -391,69 +391,71 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
 
   return (
     <div className='flex flex-col rounded-lg'>
-      <div className='flex flex-wrap rounded-t-lg p-6 gap-4 items-center bg-slate-200 dark:bg-slate-800'>
-        <Image
-          src={`https://assets.pokemon.com/assets/cms2/img/pokedex/detail/${pokemon.id.toString().padStart(3, '0')}.png`}
-          alt={pokemonName}
-          width={250}
-          height={250}
-          className='shrink-0 w-20 h-20 md:w-30 md:h-30 lg:w-50 lg:h-50'
-          data-retry-count='0'
-          onError={handleImageError}
-        />
+      <div className='flex flex-col rounded-t-lg p-6 gap-4 bg-slate-200 dark:bg-slate-800'>
+        <div className='flex gap-4 items-center'>
+          <Image
+            src={`https://assets.pokemon.com/assets/cms2/img/pokedex/detail/${pokemon.id.toString().padStart(3, '0')}.png`}
+            alt={pokemonName}
+            width={250}
+            height={250}
+            className='shrink-0 w-20 h-20 md:w-30 md:h-30 lg:w-50 lg:h-50'
+            data-retry-count='0'
+            onError={handleImageError}
+          />
 
-        <div className='flex flex-col gap-4 justify-center'>
-          <span className='text-sm text-gray-500'>#{pokemon.id.toString().padStart(3, '0')}</span>
-          
-          <div className='flex flex-col'>
-            <span className='text-md md:text-2xl font-bold capitalize'>{pokemonName}</span>
-            <span className='text-xs md:text-sm text-gray-500'>{genus}</span>
+          <div className='flex flex-1 min-w-0 flex-col gap-4 justify-center'>
+            <span className='text-sm text-gray-500'>#{pokemon.id.toString().padStart(3, '0')}</span>
+
+            <div className='flex flex-col'>
+              <span className='text-md md:text-2xl font-bold capitalize'>{pokemonName}</span>
+              <span className='text-xs md:text-sm text-gray-500'>{genus}</span>
+            </div>
+
+            <div className='flex gap-2 mt-2'>
+              {pokemon?.types.map((type) => (
+                <Badge key={type.type.name} className={`type-${type.type.name} text-slate-50 capitalize`}>{t(`type.${type.type.name}`)}</Badge>
+              ))}
+            </div>
           </div>
 
-          <div className='flex gap-2 mt-2'>
-            {pokemon?.types.map((type) => (
-              <Badge key={type.type.name} className={`type-${type.type.name} text-slate-50 capitalize`}>{t(`type.${type.type.name}`)}</Badge>
-            ))}
-          </div>
+          <div className='flex items-center shrink-0'>
+            <audio ref={audioRef} className='hidden' preload='auto'>
+              <source src={cry} type='audio/mpeg' />
+            </audio>
 
-          <div className='flex gap-4 mt-2'>
-            <QuantityStepper
-              label={t('collection.owned')}
-              value={ownedQuantity}
-              target={pokemonTarget.normal}
-              onChange={(next) => setOwnedQuantity(pokemon.id, next)}
-            />
+            <button
+              onClick={() => {
+                const audio = audioRef.current;
+                if (!audio) return;
 
-            <QuantityStepper
-              label={t('collection.fullArt')}
-              value={fullArtQuantity}
-              target={pokemonTarget.fullArt}
-              onChange={(next) => setFullArtQuantity(pokemon.id, next)}
-            />
+                if (audio.paused) {
+                  audio.play();
+                } else {
+                  audio.pause();
+                }
+              }}
+              aria-label={isPlaying ? t('pause') : t('play')}
+              className='cursor-pointer h-8 w-8 md:h-12 md:w-12 flex items-center justify-center rounded-full border border-slate-400 bg-slate-100 dark:bg-slate-700'
+            >
+              {isPlaying ? <Pause className='h-3 w-3 md:h-6 md:w-6' /> : <Play className='h-3 w-3 md:h-6 md:w-6' />}
+            </button>
           </div>
         </div>
 
-        <div className='flex basis-full justify-center sm:basis-0 sm:flex-1 items-center'>
-          <audio ref={audioRef} className='hidden' preload='auto'>
-            <source src={cry} type='audio/mpeg' />
-          </audio>
+        <div className='flex justify-center gap-4'>
+          <QuantityStepper
+            label={t('collection.owned')}
+            value={ownedQuantity}
+            target={pokemonTarget.normal}
+            onChange={(next) => setOwnedQuantity(pokemon.id, next)}
+          />
 
-          <button
-            onClick={() => {
-              const audio = audioRef.current;
-              if (!audio) return;
-
-              if (audio.paused) {
-                audio.play();
-              } else {
-                audio.pause();
-              }
-            }}
-            aria-label={isPlaying ? t('pause') : t('play')}
-            className='cursor-pointer h-8 w-8 md:h-12 md:w-12 flex items-center justify-center rounded-full border border-slate-400 bg-slate-100 dark:bg-slate-700 sm:ml-4'
-          >
-            {isPlaying ? <Pause className='h-3 w-3 md:h-6 md:w-6' /> : <Play className='h-3 w-3 md:h-6 md:w-6' />}
-          </button>
+          <QuantityStepper
+            label={t('collection.fullArt')}
+            value={fullArtQuantity}
+            target={pokemonTarget.fullArt}
+            onChange={(next) => setFullArtQuantity(pokemon.id, next)}
+          />
         </div>
       </div>
 
