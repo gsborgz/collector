@@ -19,7 +19,7 @@ import QuantityStepper from '@components/ui/QuantityStepper';
 import { useCollection } from '@providers/CollectionProvider';
 import InfiniteScroll from '@components/InifiniteScroll';
 import Modal from '@components/ui/Modal';
-import { getPokemonDexEntryPtBR } from '@data/dexEntriesPtBR';
+import { getPokemonDexEntryPtBR, PokemonDexEntry } from '@data/dexEntriesPtBR';
 
 export default function PokemonDetails() {
   const router = useRouter();
@@ -29,6 +29,7 @@ export default function PokemonDetails() {
   const [error, setError] = useState<string | null>(null);
   const [pokemon, setPokemon] = useState<Pokemon | null>(null);
   const [species, setSpecies] = useState<PokemonSpecies | null>(null);
+  const [dexEntryPtBR, setDexEntryPtBR] = useState<PokemonDexEntry | null>(null);
   const currentId = parseInt(id, 10);
   const returnToList = () => {
     router.push('/');
@@ -46,6 +47,14 @@ export default function PokemonDetails() {
 
       setPokemon(pokemonData);
       setSpecies(speciesData);
+
+      // Busca a tradução pt-BR aqui (por trás do loading da própria página) para
+      // que ela já esteja disponível quando o conteúdo aparecer, evitando o
+      // flash de texto em inglês que ocorreria se fosse buscada só depois.
+      // Uma falha aqui (ex: chunk indisponível) não deve derrubar a página.
+      const dexEntry = await getPokemonDexEntryPtBR(speciesData.id).catch(() => null);
+
+      setDexEntryPtBR(dexEntry);
     };
 
     getPokemonDetails(id)
@@ -99,7 +108,7 @@ export default function PokemonDetails() {
           <div className='flex-1 min-w-0 cursor-default border border-slate-400 shadow-md rounded-lg bg-slate-50 dark:bg-slate-950'>
             { (loading && <LoadingDetails />) || (error && <ErrorDetails message={error} />) || (pokemon && (
               <>
-                <NormalDetails pokemon={pokemon} species={species} />
+                <NormalDetails pokemon={pokemon} species={species} dexEntryPtBR={dexEntryPtBR} />
                 <TcgCards pokemon={pokemon} species={species} />
               </>
             )) }
@@ -343,14 +352,14 @@ function ErrorDetails({ message }: { message: string }) {
   );
 }
 
-function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: PokemonSpecies | null }) {
+function NormalDetails({ pokemon, species, dexEntryPtBR }: { pokemon: Pokemon, species: PokemonSpecies | null, dexEntryPtBR: PokemonDexEntry | null }) {
   const { t, i18n } = useTranslation();
   const { getTarget, getOwnedQuantity, getFullArtQuantity, setOwnedQuantity, setFullArtQuantity } = useCollection();
   const pokemonTarget = getTarget(pokemon.id);
   const ownedQuantity = getOwnedQuantity(pokemon.id);
   const fullArtQuantity = getFullArtQuantity(pokemon.id);
   const availableVersions = getAvailableVersions(species);
-  const initialDescription = getFallbackDescription(availableVersions[0].value, species, i18n.language) || t('noDescription');
+  const initialDescription = getDescription(availableVersions[0].value, species, i18n.language, dexEntryPtBR) || t('noDescription');
   const cry = pokemon.cries.latest;
   const [gameVersion, setGameVersion] = useState<string>(availableVersions[0].value);
   const [versionDescription, setVersionDescription] = useState<string>(initialDescription);
@@ -360,25 +369,16 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   useEffect(() => {
-    let cancelled = false;
+    const description = getDescription(gameVersion, species, i18n.language, dexEntryPtBR) || t('noDescription');
 
-    getDescription(gameVersion, species, i18n.language).then((description) => {
-      if (!cancelled) {
-        setVersionDescription(description || t('noDescription'));
-      }
-    });
-
+    setVersionDescription(description);
     setPokemonName(getPokemonName(species, i18n.language));
     setGenus(getGenus(species, i18n.language));
 
     if (audioRef.current) {
       audioRef.current.volume = 0.05;
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [i18n.language, gameVersion, species, t]);
+  }, [i18n.language, gameVersion, species, dexEntryPtBR, t]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -478,6 +478,9 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
             defaultValue={availableVersions[0].value}
             placeholder={t('selectVersion')}
             onValueChange={(value) => {
+              const description = getDescription(value, species, i18n.language, dexEntryPtBR) || t('noDescription');
+
+              setVersionDescription(description);
               setGameVersion(value);
             }}
           />
@@ -545,8 +548,12 @@ function getAvailableVersions(species: PokemonSpecies): { value: string, label: 
   return Array.from(availableVersions) || [];
 }
 
-function getFallbackDescription(selectedVersion: string, species: PokemonSpecies, language: string): string {
+function getDescription(selectedVersion: string, species: PokemonSpecies, language: string, dexEntryPtBR: PokemonDexEntry | null): string {
   if (!selectedVersion) return '';
+
+  if (language === 'pt' && dexEntryPtBR && dexEntryPtBR.versions.includes(selectedVersion)) {
+    return dexEntryPtBR.text;
+  }
 
   const languageCode = language !== 'pt' ? language : 'en';
   const dexEntries = species.flavor_text_entries.filter((entry) => entry.language.name === languageCode);
@@ -554,25 +561,6 @@ function getFallbackDescription(selectedVersion: string, species: PokemonSpecies
   const text = entry?.flavor_text;
 
   return text ? text?.replace(/\f/g, ' ').trim() : '';
-}
-
-async function getDescription(selectedVersion: string, species: PokemonSpecies, language: string): Promise<string> {
-  if (!selectedVersion) return '';
-
-  if (language === 'pt') {
-    try {
-      const dexEntry = await getPokemonDexEntryPtBR(species.id);
-
-      if (dexEntry && dexEntry.versions.includes(selectedVersion)) {
-        return dexEntry.text;
-      }
-    } catch {
-      // Falha ao carregar o chunk de traduções (ex: chunk desatualizado após
-      // um deploy); cai no fallback abaixo em vez de deixar a promise rejeitar.
-    }
-  }
-
-  return getFallbackDescription(selectedVersion, species, language);
 }
 
 function getPokemonName(species: PokemonSpecies, language: string): string {
