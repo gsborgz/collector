@@ -12,8 +12,8 @@ import { FilterProvider } from '@providers/FilterProvider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'GSBDEX (WIP)',
-  description: 'Gabriel Borges Pokédex',
+  title: 'Collector',
+  description: 'Gabriel Borges Collector',
   icons: {
     icon: '/pokeball.png'
   }

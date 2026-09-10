@@ -37,7 +37,7 @@ const resources = {
         invalidCode: 'Código inválido.',
       },
       setup: {
-        title: 'Bem-vindo(a) à sua Pokédex',
+        title: 'Bem-vindo(a) ao Collector',
         subtitle: 'Crie uma coleção nova ou carregue uma que você já tenha.',
         loadTitle: 'Carregar coleção existente',
         loadDescription: 'Cole o código da coleção que você guardou anteriormente.',
@@ -175,7 +175,7 @@ const resources = {
         invalidCode: 'Invalid code.',
       },
       setup: {
-        title: 'Welcome to your Pokédex',
+        title: 'Welcome to Collector',
         subtitle: 'Create a new collection or load one you already have.',
         loadTitle: 'Load an existing collection',
         loadDescription: 'Paste the code of a collection you saved before.',
@@ -312,7 +312,7 @@ const resources = {
         invalidCode: 'Code invalide.',
       },
       setup: {
-        title: 'Bienvenue dans votre Pokédex',
+        title: 'Bienvenue dans Collector',
         subtitle: 'Créez une nouvelle collection ou chargez-en une existante.',
         loadTitle: 'Charger une collection existante',
         loadDescription: 'Collez le code d\'une collection que vous avez déjà enregistrée.',

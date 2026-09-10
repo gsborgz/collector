@@ -70,7 +70,7 @@ export default function Header() {
         <div className='hidden md:flex items-center gap-2'>
           <Link className="flex items-center space-x-2" href="/">
             <span className={`hidden font-bold sm:inline-block ${isPokedex ? 'link-primary' : 'link-secondary'}`}>
-              Pokédex
+              Collector
             </span>
           </Link>
         </div>
