@@ -29,7 +29,13 @@ export async function getPokemonDexEntryPtBR(speciesId: number): Promise<Pokemon
   let entriesPromise = generationCache.get(generation);
 
   if (!entriesPromise) {
-    entriesPromise = generation.load();
+    entriesPromise = generation.load().catch((error) => {
+      // Não mantém uma promise rejeitada em cache (ex: chunk desatualizado
+      // após um deploy), para que uma tentativa futura possa ter sucesso.
+      generationCache.delete(generation);
+
+      throw error;
+    });
     generationCache.set(generation, entriesPromise);
   }
 

@@ -560,10 +560,15 @@ async function getDescription(selectedVersion: string, species: PokemonSpecies, 
   if (!selectedVersion) return '';
 
   if (language === 'pt') {
-    const dexEntry = await getPokemonDexEntryPtBR(species.id);
+    try {
+      const dexEntry = await getPokemonDexEntryPtBR(species.id);
 
-    if (dexEntry && dexEntry.versions.includes(selectedVersion)) {
-      return dexEntry.text;
+      if (dexEntry && dexEntry.versions.includes(selectedVersion)) {
+        return dexEntry.text;
+      }
+    } catch {
+      // Falha ao carregar o chunk de traduções (ex: chunk desatualizado após
+      // um deploy); cai no fallback abaixo em vez de deixar a promise rejeitar.
     }
   }
 
