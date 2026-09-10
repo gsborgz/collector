@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { GripVertical, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import InfiniteScroll from '@components/InifiniteScroll';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { getPokemonIdFromUrl, usePokemonList } from '@hooks/useApi';
 import { PokemonListItem } from '@models/pokemon';
 import { PokemonTarget } from '@models/collection';
@@ -43,7 +43,31 @@ interface PokemonPickerProps {
   onCancel: () => void;
 }
 
-const ITEMS_PER_PAGE = 24;
+// Matches the Tailwind breakpoints used by the grid's responsive column classes below.
+const COLUMN_BREAKPOINTS = { sm: 640, md: 768, lg: 1024 };
+const ROW_HEIGHT_ESTIMATE = 116;
+
+function getColumnsForWidth(width: number): number {
+  if (width >= COLUMN_BREAKPOINTS.lg) return 6;
+  if (width >= COLUMN_BREAKPOINTS.md) return 5;
+  if (width >= COLUMN_BREAKPOINTS.sm) return 4;
+  return 3;
+}
+
+function useResponsiveColumns(): number {
+  const [columns, setColumns] = useState(() => (typeof window === 'undefined' ? 3 : getColumnsForWidth(window.innerWidth)));
+
+  useEffect(() => {
+    const handleResize = () => setColumns(getColumnsForWidth(window.innerWidth));
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return columns;
+}
 
 export default function PokemonPicker({
   mode,
@@ -61,7 +85,6 @@ export default function PokemonPicker({
   const [data, setData] = useState<PokemonListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [baseCount, setBaseCount] = useState(ITEMS_PER_PAGE);
   const [selectedOrder, setSelectedOrder] = useState<number[]>(() => [...initialSelectedIds]);
   const [defaultTarget, setDefaultTarget] = useState<PokemonTarget>(initialDefaultTarget);
   const [overrides, setOverrides] = useState<Record<number, PokemonTarget>>(() => {
@@ -77,6 +100,13 @@ export default function PokemonPicker({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
+  const columns = useResponsiveColumns();
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const scrollMarginRef = useRef(0);
+
+  useLayoutEffect(() => {
+    scrollMarginRef.current = gridContainerRef.current?.offsetTop ?? 0;
+  });
 
   useEffect(() => {
     usePokemonList()
@@ -118,13 +148,26 @@ export default function PokemonPicker({
     return [...selectedItems, ...unselectedItems];
   }, [filteredData, selectedOrder, selectedIdsSet, dataById, mode]);
 
-  const visibleCount = Math.max(baseCount, mode === 'membership' ? selectedOrder.length : 0);
-  const visiblePokemon = orderedData.slice(0, visibleCount);
-  const hasNextPage = visibleCount < orderedData.length;
+  // The full dex (up to ~1025 entries) is already loaded in memory, so instead
+  // of incrementally rendering more items as the user scrolls, we virtualize
+  // rows of the grid: only the rows actually in (or near) the viewport are
+  // mounted, regardless of how many Pokémon are selected or how large the list is.
+  const rows = useMemo(() => {
+    const grouped: PokemonListItem[][] = [];
 
-  const loadMore = () => {
-    setBaseCount((prev) => Math.min(prev + ITEMS_PER_PAGE, orderedData.length));
-  };
+    for (let i = 0; i < orderedData.length; i += columns) {
+      grouped.push(orderedData.slice(i, i + columns));
+    }
+
+    return grouped;
+  }, [orderedData, columns]);
+
+  const rowVirtualizer = useWindowVirtualizer({
+    count: rows.length,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 4,
+    scrollMargin: scrollMarginRef.current,
+  });
 
   const toggleSelected = (id: number) => {
     setSelectedOrder((prev) => (prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]));
@@ -203,52 +246,72 @@ export default function PokemonPicker({
         )}
       </div>
 
-      <InfiniteScroll onLoadMore={loadMore} hasNextPage={hasNextPage} isFetchingNextPage={false}>
+      {loading && (
+        <div className='text-center py-4'>
+          <p className='text-sm text-slate-500'>{t('loading')}</p>
+        </div>
+      )}
+
+      {!loading && rows.length === 0 && (
+        <div className='text-center py-4'>
+          <p className='text-sm text-slate-500'>{t('noResults')}</p>
+        </div>
+      )}
+
+      {!loading && rows.length > 0 && (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={selectedOrder} strategy={rectSortingStrategy}>
-            <div className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 mb-8'>
-              {loading && (
-                <div className='col-span-full text-center py-4'>
-                  <p className='text-sm text-slate-500'>{t('loading')}</p>
-                </div>
-              )}
-
-              {!loading && visiblePokemon.length === 0 && (
-                <div className='col-span-full text-center py-4'>
-                  <p className='text-sm text-slate-500'>{t('noResults')}</p>
-                </div>
-              )}
-
-              {visiblePokemon.map((pokemon) => {
-                const id = getPokemonIdFromUrl(pokemon.url);
-                const selected = mode === 'targets' || selectedIdsSet.has(id);
-
-                if (mode === 'membership' && selected) {
-                  return (
-                    <SortablePickerCard
-                      key={id}
-                      id={id}
-                      pokemon={pokemon}
-                      onToggle={() => toggleSelected(id)}
-                    />
-                  );
-                }
+            <div ref={gridContainerRef} className='relative mb-8' style={{ height: rowVirtualizer.getTotalSize() }}>
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const rowItems = rows[virtualRow.index];
 
                 return (
-                  <PickerCard
-                    key={id}
-                    id={id}
-                    pokemon={pokemon}
-                    selected={selected}
-                    clickable={mode === 'membership'}
-                    onToggle={() => toggleSelected(id)}
-                  />
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
+                    }}
+                    className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-3'
+                  >
+                    {rowItems.map((pokemon) => {
+                      const id = getPokemonIdFromUrl(pokemon.url);
+                      const selected = mode === 'targets' || selectedIdsSet.has(id);
+
+                      if (mode === 'membership' && selected) {
+                        return (
+                          <SortablePickerCard
+                            key={id}
+                            id={id}
+                            pokemon={pokemon}
+                            onToggle={() => toggleSelected(id)}
+                          />
+                        );
+                      }
+
+                      return (
+                        <PickerCard
+                          key={id}
+                          id={id}
+                          pokemon={pokemon}
+                          selected={selected}
+                          clickable={mode === 'membership'}
+                          onToggle={() => toggleSelected(id)}
+                        />
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
           </SortableContext>
         </DndContext>
-      </InfiniteScroll>
+      )}
     </div>
   );
 }
@@ -318,6 +381,7 @@ interface SortablePickerCardProps {
 }
 
 function SortablePickerCard({ id, pokemon, onToggle }: SortablePickerCardProps) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -336,7 +400,7 @@ function SortablePickerCard({ id, pokemon, onToggle }: SortablePickerCardProps) 
         {...attributes}
         {...listeners}
         className='absolute right-1 top-1 cursor-grab touch-none rounded p-0.5 text-indigo-500/70 hover:text-indigo-500 active:cursor-grabbing dark:text-indigo-400/70 dark:hover:text-indigo-400'
-        aria-label='Drag to reorder'
+        aria-label={t('setup.dragHandleLabel')}
       >
         <GripVertical className='h-3.5 w-3.5' />
       </button>

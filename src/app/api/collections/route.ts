@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   const id = randomUUID();
   const collection: CollectionData = {
     type,
-    ...(type === 'custom' ? { pokemonIds: Array.from(new Set(pokemonIds)).sort((a, b) => a - b) } : {}),
+    ...(type === 'custom' ? { pokemonIds: Array.from(new Set(pokemonIds)) } : {}),
     defaultTarget: defaultTarget ?? DEFAULT_TARGET,
     entries: {},
   };
