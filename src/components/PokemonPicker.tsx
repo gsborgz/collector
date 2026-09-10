@@ -43,30 +43,40 @@ interface PokemonPickerProps {
   onCancel: () => void;
 }
 
-// Matches the Tailwind breakpoints used by the grid's responsive column classes below.
-const COLUMN_BREAKPOINTS = { sm: 640, md: 768, lg: 1024 };
+// Single source of truth for the grid's responsive column count: these are the
+// same classes applied to the actual rendered rows further down. Column count
+// is derived by measuring the live computed style (see useMeasuredColumns)
+// instead of duplicating the breakpoint pixel values in JS, so it can never
+// drift out of sync with the CSS.
+const GRID_COLUMNS_CLASSNAME = 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
 const ROW_HEIGHT_ESTIMATE = 116;
 
-function getColumnsForWidth(width: number): number {
-  if (width >= COLUMN_BREAKPOINTS.lg) return 6;
-  if (width >= COLUMN_BREAKPOINTS.md) return 5;
-  if (width >= COLUMN_BREAKPOINTS.sm) return 4;
-  return 3;
-}
+function useMeasuredColumns(gridClassName: string) {
+  const probeRef = useRef<HTMLDivElement>(null);
+  const [columns, setColumns] = useState(3);
 
-function useResponsiveColumns(): number {
-  const [columns, setColumns] = useState(() => (typeof window === 'undefined' ? 3 : getColumnsForWidth(window.innerWidth)));
+  useLayoutEffect(() => {
+    const el = probeRef.current;
 
-  useEffect(() => {
-    const handleResize = () => setColumns(getColumnsForWidth(window.innerWidth));
+    if (!el || typeof ResizeObserver === 'undefined') return;
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
+    const measure = () => {
+      const columnCount = window.getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length;
 
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+      if (columnCount > 0) {
+        setColumns((prev) => (prev === columnCount ? prev : columnCount));
+      }
+    };
 
-  return columns;
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [gridClassName]);
+
+  return { columns, probeRef };
 }
 
 export default function PokemonPicker({
@@ -100,12 +110,14 @@ export default function PokemonPicker({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
-  const columns = useResponsiveColumns();
+  const { columns, probeRef } = useMeasuredColumns(GRID_COLUMNS_CLASSNAME);
   const gridContainerRef = useRef<HTMLDivElement>(null);
-  const scrollMarginRef = useRef(0);
+  const [scrollMargin, setScrollMargin] = useState(0);
 
   useLayoutEffect(() => {
-    scrollMarginRef.current = gridContainerRef.current?.offsetTop ?? 0;
+    const next = gridContainerRef.current?.offsetTop ?? 0;
+
+    setScrollMargin((prev) => (prev === next ? prev : next));
   });
 
   useEffect(() => {
@@ -166,7 +178,7 @@ export default function PokemonPicker({
     count: rows.length,
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
     overscan: 4,
-    scrollMargin: scrollMarginRef.current,
+    scrollMargin,
   });
 
   const toggleSelected = (id: number) => {
@@ -246,6 +258,8 @@ export default function PokemonPicker({
         )}
       </div>
 
+      <div ref={probeRef} aria-hidden className={concatClassNames('grid', GRID_COLUMNS_CLASSNAME, 'invisible absolute h-0 w-full overflow-hidden')} />
+
       {loading && (
         <div className='text-center py-4'>
           <p className='text-sm text-slate-500'>{t('loading')}</p>
@@ -277,7 +291,7 @@ export default function PokemonPicker({
                       width: '100%',
                       transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
                     }}
-                    className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 pb-3'
+                    className={concatClassNames('grid', GRID_COLUMNS_CLASSNAME, 'gap-3 pb-3')}
                   >
                     {rowItems.map((pokemon) => {
                       const id = getPokemonIdFromUrl(pokemon.url);
