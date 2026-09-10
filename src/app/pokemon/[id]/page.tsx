@@ -543,10 +543,10 @@ function getDescription(selectedVersion: string, species: PokemonSpecies, langua
   if (!selectedVersion) return '';
 
   if (language === 'pt') {
-    const translation = pokemonDexEntriesPtBR[species.id]?.[selectedVersion];
+    const dexEntry = pokemonDexEntriesPtBR[species.id];
 
-    if (translation) {
-      return translation;
+    if (dexEntry && dexEntry.versions.includes(selectedVersion)) {
+      return dexEntry.text;
     }
   }
 
