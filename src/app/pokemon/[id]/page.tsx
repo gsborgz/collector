@@ -391,13 +391,13 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
 
   return (
     <div className='flex flex-col rounded-lg'>
-      <div className='flex rounded-t-lg p-6 gap-4 items-center bg-slate-200 dark:bg-slate-800'>
+      <div className='flex flex-wrap rounded-t-lg p-6 gap-4 items-center bg-slate-200 dark:bg-slate-800'>
         <Image
           src={`https://assets.pokemon.com/assets/cms2/img/pokedex/detail/${pokemon.id.toString().padStart(3, '0')}.png`}
           alt={pokemonName}
           width={250}
           height={250}
-          className='w-20 h-20 md:w-30 md:h-30 lg:w-50 lg:h-50'
+          className='shrink-0 w-20 h-20 md:w-30 md:h-30 lg:w-50 lg:h-50'
           data-retry-count='0'
           onError={handleImageError}
         />
@@ -433,7 +433,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
           </div>
         </div>
 
-        <div className='flex flex-1 items-center justify-center'>
+        <div className='flex basis-full justify-center sm:basis-0 sm:flex-1 items-center'>
           <audio ref={audioRef} className='hidden' preload='auto'>
             <source src={cry} type='audio/mpeg' />
           </audio>
@@ -450,7 +450,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
               }
             }}
             aria-label={isPlaying ? t('pause') : t('play')}
-            className='cursor-pointer h-8 w-8 md:h-12 md:w-12 flex items-center justify-center rounded-full border border-slate-400 bg-slate-100 dark:bg-slate-700 ml-4'
+            className='cursor-pointer h-8 w-8 md:h-12 md:w-12 flex items-center justify-center rounded-full border border-slate-400 bg-slate-100 dark:bg-slate-700 sm:ml-4'
           >
             {isPlaying ? <Pause className='h-3 w-3 md:h-6 md:w-6' /> : <Play className='h-3 w-3 md:h-6 md:w-6' />}
           </button>
