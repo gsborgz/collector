@@ -59,6 +59,7 @@ export interface PokemonListItem {
 }
 
 export interface PokemonSpecies {
+  id: number;
   flavor_text_entries: FlavorTextEntry[];
   genera: Genus[];
   names: {
