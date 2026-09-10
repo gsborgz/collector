@@ -19,7 +19,7 @@ import QuantityStepper from '@components/ui/QuantityStepper';
 import { useCollection } from '@providers/CollectionProvider';
 import InfiniteScroll from '@components/InifiniteScroll';
 import Modal from '@components/ui/Modal';
-import { pokemonDexEntriesPtBR } from '@data/pokemonDescriptions.pt-br';
+import { getPokemonDexEntryPtBR } from '@data/dexEntriesPtBR';
 
 export default function PokemonDetails() {
   const router = useRouter();
@@ -350,7 +350,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
   const ownedQuantity = getOwnedQuantity(pokemon.id);
   const fullArtQuantity = getFullArtQuantity(pokemon.id);
   const availableVersions = getAvailableVersions(species);
-  const initialDescription = getDescription(availableVersions[0].value, species, i18n.language) || t('noDescription');
+  const initialDescription = getFallbackDescription(availableVersions[0].value, species, i18n.language) || t('noDescription');
   const cry = pokemon.cries.latest;
   const [gameVersion, setGameVersion] = useState<string>(availableVersions[0].value);
   const [versionDescription, setVersionDescription] = useState<string>(initialDescription);
@@ -358,17 +358,26 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
   const [genus, setGenus] = useState<string>(getGenus(species, i18n.language));
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  
-  useEffect(() => {
-    const description = getDescription(gameVersion, species, i18n.language) || t('noDescription');
 
-    setVersionDescription(description);
+  useEffect(() => {
+    let cancelled = false;
+
+    getDescription(gameVersion, species, i18n.language).then((description) => {
+      if (!cancelled) {
+        setVersionDescription(description || t('noDescription'));
+      }
+    });
+
     setPokemonName(getPokemonName(species, i18n.language));
     setGenus(getGenus(species, i18n.language));
 
     if (audioRef.current) {
       audioRef.current.volume = 0.05;
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [i18n.language, gameVersion, species, t]);
 
   useEffect(() => {
@@ -469,9 +478,6 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
             defaultValue={availableVersions[0].value}
             placeholder={t('selectVersion')}
             onValueChange={(value) => {
-              const description = getDescription(value, species, i18n.language) || t('noDescription');
-
-              setVersionDescription(description);
               setGameVersion(value);
             }}
           />
@@ -539,16 +545,8 @@ function getAvailableVersions(species: PokemonSpecies): { value: string, label: 
   return Array.from(availableVersions) || [];
 }
 
-function getDescription(selectedVersion: string, species: PokemonSpecies, language: string): string {
+function getFallbackDescription(selectedVersion: string, species: PokemonSpecies, language: string): string {
   if (!selectedVersion) return '';
-
-  if (language === 'pt') {
-    const dexEntry = pokemonDexEntriesPtBR[species.id];
-
-    if (dexEntry && dexEntry.versions.includes(selectedVersion)) {
-      return dexEntry.text;
-    }
-  }
 
   const languageCode = language !== 'pt' ? language : 'en';
   const dexEntries = species.flavor_text_entries.filter((entry) => entry.language.name === languageCode);
@@ -556,6 +554,20 @@ function getDescription(selectedVersion: string, species: PokemonSpecies, langua
   const text = entry?.flavor_text;
 
   return text ? text?.replace(/\f/g, ' ').trim() : '';
+}
+
+async function getDescription(selectedVersion: string, species: PokemonSpecies, language: string): Promise<string> {
+  if (!selectedVersion) return '';
+
+  if (language === 'pt') {
+    const dexEntry = await getPokemonDexEntryPtBR(species.id);
+
+    if (dexEntry && dexEntry.versions.includes(selectedVersion)) {
+      return dexEntry.text;
+    }
+  }
+
+  return getFallbackDescription(selectedVersion, species, language);
 }
 
 function getPokemonName(species: PokemonSpecies, language: string): string {

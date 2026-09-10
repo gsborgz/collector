@@ -1,14 +1,7 @@
-// Traduções pt-BR das descrições da Pokédex.
-// A PokeAPI não possui entradas oficiais em pt-BR para a maioria dos jogos
-// (os jogos originais nunca foram localizados). Este arquivo cobre a Geração 1
-// (versões 'red' e 'blue', que têm o mesmo texto em inglês na PokeAPI) como um
-// piloto; combinações de id/versão sem entrada aqui caem no fallback em inglês.
-export interface PokemonDexEntry {
-  text: string;
-  versions: string[];
-}
+import type { PokemonDexEntry } from './types';
 
-export const pokemonDexEntriesPtBR: Record<number, PokemonDexEntry> = {
+// Geração 1 (Red/Blue). Ver types.ts para o formato de cada entrada.
+export const pokemonDexEntriesPtBRGen1: Record<number, PokemonDexEntry> = {
   1: { text: "Uma semente estranha foi plantada em suas costas quando nasceu. A planta brota e cresce junto com este Pokémon.", versions: ['red', 'blue'] }, // bulbasaur
   2: { text: "Quando o bulbo em suas costas cresce muito, ele parece perder a capacidade de ficar em pé sobre as patas traseiras.", versions: ['red', 'blue'] }, // ivysaur
   3: { text: "A planta floresce quando está absorvendo energia solar. Ele se mantém em movimento em busca de luz do sol.", versions: ['red', 'blue'] }, // venusaur
