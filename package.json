@@ -20,8 +20,12 @@
     "services:down": "docker compose down"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@next/env": "^15.4.3",
     "@tailwindcss/postcss": "^4.1.11",
+    "@tanstack/react-virtual": "^3.14.11",
     "@tcgdex/sdk": "^2.9.0",
     "@upstash/redis": "^1.38.2",
     "i18next": "^25.3.2",

@@ -48,9 +48,13 @@ export default function PokemonList() {
   const scopedData = useMemo(() => {
     if (collectionType !== 'custom' || !pokemonIds) return data;
 
-    const idSet = new Set(pokemonIds);
+    const dataById = new Map<number, PokemonListItem>();
 
-    return data.filter((pokemon) => idSet.has(getPokemonIdFromUrl(pokemon.url)));
+    data.forEach((pokemon) => dataById.set(getPokemonIdFromUrl(pokemon.url), pokemon));
+
+    return pokemonIds
+      .map((id) => dataById.get(id))
+      .filter((pokemon): pokemon is PokemonListItem => Boolean(pokemon));
   }, [data, collectionType, pokemonIds]);
   const filteredData = useMemo(() => {
     if (filters.size === 0) return scopedData;
