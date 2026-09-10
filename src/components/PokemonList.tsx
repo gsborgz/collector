@@ -19,6 +19,7 @@ export default function PokemonList() {
     ownedCount,
     fullArtCount,
     totalCount,
+    totalFullArtCount,
     collectionType,
     pokemonIds,
     defaultTarget,
@@ -205,7 +206,7 @@ export default function PokemonList() {
     <div className='flex flex-col gap-6'>
       <div className='flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center text-sm text-slate-500'>
         <p>{t('collection.progress', { owned: ownedCount, total: totalCount })}</p>
-        <p>{t('collection.fullArtProgress', { owned: fullArtCount, total: totalCount })}</p>
+        <p>{t('collection.fullArtProgress', { owned: fullArtCount, total: totalFullArtCount })}</p>
 
         <Button variant='ghost' size='default' onClick={() => setEditingList(true)}>
           {collectionType === 'custom' ? t('setup.editList') : t('setup.editTargets')}
