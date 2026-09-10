@@ -46,6 +46,9 @@
       "@models/*": [
         "src/models/*"
       ],
+      "@data/*": [
+        "src/data/*"
+      ],
     },
     "target": "ES2017"
   },

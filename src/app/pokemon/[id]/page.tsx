@@ -19,6 +19,7 @@ import QuantityStepper from '@components/ui/QuantityStepper';
 import { useCollection } from '@providers/CollectionProvider';
 import InfiniteScroll from '@components/InifiniteScroll';
 import Modal from '@components/ui/Modal';
+import { pokemonDexEntriesPtBR } from '@data/pokemonDescriptions.pt-br';
 
 export default function PokemonDetails() {
   const router = useRouter();
@@ -349,7 +350,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
   const ownedQuantity = getOwnedQuantity(pokemon.id);
   const fullArtQuantity = getFullArtQuantity(pokemon.id);
   const availableVersions = getAvailableVersions(species);
-  const initialDescription = getDescription(availableVersions[0].value, species, i18n.language) || t('noDescription');
+  const initialDescription = getDescription(availableVersions[0].value, species, i18n.language, pokemon.id) || t('noDescription');
   const cry = pokemon.cries.latest;
   const [gameVersion, setGameVersion] = useState<string>(availableVersions[0].value);
   const [versionDescription, setVersionDescription] = useState<string>(initialDescription);
@@ -359,7 +360,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   
   useEffect(() => {
-    const description = getDescription(gameVersion, species, i18n.language) || t('noDescription');
+    const description = getDescription(gameVersion, species, i18n.language, pokemon.id) || t('noDescription');
 
     setVersionDescription(description);
     setPokemonName(getPokemonName(species, i18n.language));
@@ -368,7 +369,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
     if (audioRef.current) {
       audioRef.current.volume = 0.05;
     }
-  }, [i18n.language, gameVersion, species, t]);
+  }, [i18n.language, gameVersion, species, t, pokemon.id]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -468,7 +469,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
             defaultValue={availableVersions[0].value}
             placeholder={t('selectVersion')}
             onValueChange={(value) => {
-              const description = getDescription(value, species, i18n.language) || t('noDescription');
+              const description = getDescription(value, species, i18n.language, pokemon.id) || t('noDescription');
 
               setVersionDescription(description);
               setGameVersion(value);
@@ -538,8 +539,16 @@ function getAvailableVersions(species: PokemonSpecies): { value: string, label: 
   return Array.from(availableVersions) || [];
 }
 
-function getDescription(selectedVersion: string, species: PokemonSpecies, language: string): string {
+function getDescription(selectedVersion: string, species: PokemonSpecies, language: string, pokemonId: number): string {
   if (!selectedVersion) return '';
+
+  if (language === 'pt') {
+    const translation = pokemonDexEntriesPtBR[pokemonId]?.[selectedVersion];
+
+    if (translation) {
+      return translation;
+    }
+  }
 
   const languageCode = language !== 'pt' ? language : 'en';
   const dexEntries = species.flavor_text_entries.filter((entry) => entry.language.name === languageCode);
