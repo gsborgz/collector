@@ -551,8 +551,12 @@ function getAvailableVersions(species: PokemonSpecies): { value: string, label: 
 function getDescription(selectedVersion: string, species: PokemonSpecies, language: string, dexEntryPtBR: PokemonDexEntry | null): string {
   if (!selectedVersion) return '';
 
-  if (language === 'pt' && dexEntryPtBR && dexEntryPtBR.versions.includes(selectedVersion)) {
-    return dexEntryPtBR.text;
+  if (language === 'pt' && dexEntryPtBR) {
+    const variant = dexEntryPtBR.find((entry) => entry.versions.includes(selectedVersion));
+
+    if (variant) {
+      return variant.text;
+    }
   }
 
   const languageCode = language !== 'pt' ? language : 'en';
