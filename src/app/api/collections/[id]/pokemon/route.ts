@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ message: 'Only custom collections can have their pokemon list edited' }, { status: 400 });
   }
 
-  collection.pokemonIds = Array.from(new Set(pokemonIds)).sort((a, b) => a - b);
+  collection.pokemonIds = Array.from(new Set(pokemonIds));
 
   if (defaultTarget !== undefined) {
     collection.defaultTarget = defaultTarget;
