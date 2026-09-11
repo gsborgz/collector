@@ -39,11 +39,15 @@ export default function PokemonDetails() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const getPokemonDetails = async (id: string) => {
       const [pokemonData, speciesData] = await Promise.all([
         usePokemonDetails(id),
         usePokemonSpeciesById(id),
       ]);
+
+      if (cancelled) return;
 
       setPokemon(pokemonData);
       setSpecies(speciesData);
@@ -54,16 +58,26 @@ export default function PokemonDetails() {
       // Uma falha aqui (ex: chunk indisponível) não deve derrubar a página.
       const dexEntry = await getPokemonDexEntryPtBR(speciesData.id).catch(() => null);
 
+      if (cancelled) return;
+
       setDexEntryPtBR(dexEntry);
     };
 
     getPokemonDetails(id)
       .catch((err) => {
-        setError(err.message);
+        if (!cancelled) {
+          setError(err.message);
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   // Warms the cache for the neighboring pages so the prev/next arrows feel
