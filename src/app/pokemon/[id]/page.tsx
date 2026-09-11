@@ -19,15 +19,17 @@ import QuantityStepper from '@components/ui/QuantityStepper';
 import { useCollection } from '@providers/CollectionProvider';
 import InfiniteScroll from '@components/InifiniteScroll';
 import Modal from '@components/ui/Modal';
+import { getPokemonDexEntryPtBR, PokemonDexEntry } from '@data/dexEntriesPtBR';
 
 export default function PokemonDetails() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pokemon, setPokemon] = useState<Pokemon | null>(null);
   const [species, setSpecies] = useState<PokemonSpecies | null>(null);
+  const [dexEntryPtBR, setDexEntryPtBR] = useState<PokemonDexEntry | null>(null);
   const currentId = parseInt(id, 10);
   const returnToList = () => {
     router.push('/');
@@ -37,24 +39,74 @@ export default function PokemonDetails() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const getPokemonDetails = async (id: string) => {
       const [pokemonData, speciesData] = await Promise.all([
         usePokemonDetails(id),
         usePokemonSpeciesById(id),
       ]);
 
+      if (cancelled) return;
+
       setPokemon(pokemonData);
       setSpecies(speciesData);
+      setDexEntryPtBR(null); // limpa a tradução da navegação anterior
+
+      // Busca a tradução pt-BR aqui (por trás do loading da própria página) para
+      // que ela já esteja disponível quando o conteúdo aparecer, evitando o
+      // flash de texto em inglês que ocorreria se fosse buscada só depois.
+      // Só faz sentido pagar esse custo de rede se o idioma atual for pt —
+      // quem usa outro idioma nunca precisa desses dados. Uma falha aqui
+      // (ex: chunk indisponível) não deve derrubar a página.
+      if (i18n.language === 'pt') {
+        const dexEntry = await getPokemonDexEntryPtBR(speciesData.id).catch(() => null);
+
+        if (cancelled) return;
+
+        setDexEntryPtBR(dexEntry);
+      }
     };
 
     getPokemonDetails(id)
       .catch((err) => {
-        setError(err.message);
+        if (!cancelled) {
+          setError(err.message);
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
+
+  // Cobre o caso de o usuário trocar o idioma para pt depois que a página já
+  // carregou em outro idioma (o efeito acima só busca a tradução na carga
+  // inicial, para não pagar esse custo de rede para quem não usa pt).
+  useEffect(() => {
+    if (!species || i18n.language !== 'pt' || dexEntryPtBR) {
+      return;
+    }
+
+    let cancelled = false;
+
+    getPokemonDexEntryPtBR(species.id)
+      .catch(() => null)
+      .then((dexEntry) => {
+        if (!cancelled) {
+          setDexEntryPtBR(dexEntry);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [species, i18n.language, dexEntryPtBR]);
 
   // Warms the cache for the neighboring pages so the prev/next arrows feel
   // instant instead of triggering a fresh PokeAPI round trip on click.
@@ -98,7 +150,7 @@ export default function PokemonDetails() {
           <div className='flex-1 min-w-0 cursor-default border border-slate-400 shadow-md rounded-lg bg-slate-50 dark:bg-slate-950'>
             { (loading && <LoadingDetails />) || (error && <ErrorDetails message={error} />) || (pokemon && (
               <>
-                <NormalDetails pokemon={pokemon} species={species} />
+                <NormalDetails pokemon={pokemon} species={species} dexEntryPtBR={dexEntryPtBR} />
                 <TcgCards pokemon={pokemon} species={species} />
               </>
             )) }
@@ -342,14 +394,14 @@ function ErrorDetails({ message }: { message: string }) {
   );
 }
 
-function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: PokemonSpecies | null }) {
+function NormalDetails({ pokemon, species, dexEntryPtBR }: { pokemon: Pokemon, species: PokemonSpecies | null, dexEntryPtBR: PokemonDexEntry | null }) {
   const { t, i18n } = useTranslation();
   const { getTarget, getOwnedQuantity, getFullArtQuantity, setOwnedQuantity, setFullArtQuantity } = useCollection();
   const pokemonTarget = getTarget(pokemon.id);
   const ownedQuantity = getOwnedQuantity(pokemon.id);
   const fullArtQuantity = getFullArtQuantity(pokemon.id);
   const availableVersions = getAvailableVersions(species);
-  const initialDescription = getDescription(availableVersions[0].value, species, i18n.language) || t('noDescription');
+  const initialDescription = getDescription(availableVersions[0].value, species, i18n.language, dexEntryPtBR) || t('noDescription');
   const cry = pokemon.cries.latest;
   const [gameVersion, setGameVersion] = useState<string>(availableVersions[0].value);
   const [versionDescription, setVersionDescription] = useState<string>(initialDescription);
@@ -357,9 +409,9 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
   const [genus, setGenus] = useState<string>(getGenus(species, i18n.language));
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  
+
   useEffect(() => {
-    const description = getDescription(gameVersion, species, i18n.language) || t('noDescription');
+    const description = getDescription(gameVersion, species, i18n.language, dexEntryPtBR) || t('noDescription');
 
     setVersionDescription(description);
     setPokemonName(getPokemonName(species, i18n.language));
@@ -368,7 +420,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
     if (audioRef.current) {
       audioRef.current.volume = 0.05;
     }
-  }, [i18n.language, gameVersion, species, t]);
+  }, [i18n.language, gameVersion, species, dexEntryPtBR, t]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -468,7 +520,7 @@ function NormalDetails({ pokemon, species }: { pokemon: Pokemon, species: Pokemo
             defaultValue={availableVersions[0].value}
             placeholder={t('selectVersion')}
             onValueChange={(value) => {
-              const description = getDescription(value, species, i18n.language) || t('noDescription');
+              const description = getDescription(value, species, i18n.language, dexEntryPtBR) || t('noDescription');
 
               setVersionDescription(description);
               setGameVersion(value);
@@ -538,8 +590,16 @@ function getAvailableVersions(species: PokemonSpecies): { value: string, label: 
   return Array.from(availableVersions) || [];
 }
 
-function getDescription(selectedVersion: string, species: PokemonSpecies, language: string): string {
+function getDescription(selectedVersion: string, species: PokemonSpecies, language: string, dexEntryPtBR: PokemonDexEntry | null): string {
   if (!selectedVersion) return '';
+
+  if (language === 'pt' && dexEntryPtBR) {
+    const variant = dexEntryPtBR.find((entry) => entry.versions.includes(selectedVersion));
+
+    if (variant) {
+      return variant.text;
+    }
+  }
 
   const languageCode = language !== 'pt' ? language : 'en';
   const dexEntries = species.flavor_text_entries.filter((entry) => entry.language.name === languageCode);
