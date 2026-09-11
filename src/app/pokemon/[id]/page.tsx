@@ -23,7 +23,7 @@ import { getPokemonDexEntryPtBR, PokemonDexEntry } from '@data/dexEntriesPtBR';
 
 export default function PokemonDetails() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,16 +51,21 @@ export default function PokemonDetails() {
 
       setPokemon(pokemonData);
       setSpecies(speciesData);
+      setDexEntryPtBR(null); // limpa a tradução da navegação anterior
 
       // Busca a tradução pt-BR aqui (por trás do loading da própria página) para
       // que ela já esteja disponível quando o conteúdo aparecer, evitando o
       // flash de texto em inglês que ocorreria se fosse buscada só depois.
-      // Uma falha aqui (ex: chunk indisponível) não deve derrubar a página.
-      const dexEntry = await getPokemonDexEntryPtBR(speciesData.id).catch(() => null);
+      // Só faz sentido pagar esse custo de rede se o idioma atual for pt —
+      // quem usa outro idioma nunca precisa desses dados. Uma falha aqui
+      // (ex: chunk indisponível) não deve derrubar a página.
+      if (i18n.language === 'pt') {
+        const dexEntry = await getPokemonDexEntryPtBR(speciesData.id).catch(() => null);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      setDexEntryPtBR(dexEntry);
+        setDexEntryPtBR(dexEntry);
+      }
     };
 
     getPokemonDetails(id)
@@ -79,6 +84,29 @@ export default function PokemonDetails() {
       cancelled = true;
     };
   }, [id]);
+
+  // Cobre o caso de o usuário trocar o idioma para pt depois que a página já
+  // carregou em outro idioma (o efeito acima só busca a tradução na carga
+  // inicial, para não pagar esse custo de rede para quem não usa pt).
+  useEffect(() => {
+    if (!species || i18n.language !== 'pt' || dexEntryPtBR) {
+      return;
+    }
+
+    let cancelled = false;
+
+    getPokemonDexEntryPtBR(species.id)
+      .catch(() => null)
+      .then((dexEntry) => {
+        if (!cancelled) {
+          setDexEntryPtBR(dexEntry);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [species, i18n.language, dexEntryPtBR]);
 
   // Warms the cache for the neighboring pages so the prev/next arrows feel
   // instant instead of triggering a fresh PokeAPI round trip on click.
